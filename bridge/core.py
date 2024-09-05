@@ -28,11 +28,13 @@ config = Config.get_instance()
 logger = Logger.get_logger(config.application.name)
 
 
+
 class Bridge:
     """Bridge between Telegram and Discord."""
 
-    def __init__(self, telegram_client: TelegramClient, discord_client: discord.Client):
+    def __init__(self, telegram_client: TelegramClient, discord_client: discord.Client, telegram_bot_client: TelegramClient):
         self.telegram_client = telegram_client
+        self.telegram_bot_client = telegram_bot_client
         self.discord_client = discord_client
         self.discord_handler = DiscordHandler()
         self.history_manager = MessageHistoryHandler()
@@ -169,6 +171,7 @@ class Bridge:
             should_forward_message = forwarder.forward_everything
             mention_everyone = forwarder.mention_everyone
             message_forward_hashtags: List[str] = []
+            tg_group_ig = forwarder.tg_group_id
 
             if not should_forward_message or forwarder.mention_override:
                 message_forward_hashtags = self.get_message_forward_hashtags(message)
@@ -229,6 +232,11 @@ class Bridge:
                 mention_roles,
                 config.openai.enabled,
             )
+
+            if message.reply_to and message.reply_to.reply_to_msg_id:
+                self.telegram_bot_client.send_message(entity=tg_group_ig, message=message, reply_to=message.reply_to.reply_to_msg_id)
+            else:
+                self.telegram_bot_client.send_message(entity=tg_group_ig, message=message)
 
             if message.reply_to and message.reply_to.reply_to_msg_id:
                 discord_reference = (
@@ -292,6 +300,8 @@ class Bridge:
             logger.debug("No Telegram message found, skipping...")
             return
 
+        message = event.message
+
         tg_channel_id = event.original_update.message.peer_id.channel_id
         tg_message_id = event.message.id
         tg_message_text = event.message.message
@@ -312,6 +322,10 @@ class Bridge:
 
         for forwarder in matching_forwarders:
             logger.debug("Forwarder config: %s", forwarder)
+
+            tg_group_id = forwarder.tg_group_id
+
+            self.telegram_bot_client.edit_message(entity=tg_group_id,message=message)
 
             discord_message_id = await self.history_manager.get_discord_message_id(
                 forwarder.forwarder_name, tg_message_id

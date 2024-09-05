@@ -22,6 +22,7 @@ from bridge.healtcheck import HealthHandler
 from bridge.logger import Logger
 from bridge.release import __version__
 from bridge.telegram import TelegramHandler
+from bridge.tgbot import TelegramBotHandler
 from core import SingletonMeta
 
 ERR_API_DISABLED = "API mode is disabled, please use the CLI to start the bridge, or enable it in the config file."
@@ -53,6 +54,7 @@ class Forwarder(metaclass=SingletonMeta):
     event_loop: AbstractEventLoop
     is_background: bool
     telegram_client: TelegramClient
+    telegram_bot_client: TelegramClient
     discord_client: discord.Client
     is_running: bool = False
     logger: Logger
@@ -198,10 +200,11 @@ class Forwarder(metaclass=SingletonMeta):
             )
         finally:
             if clients:
-                telegram_client, discord_client = clients[0], clients[1]
+                telegram_client, discord_client, telegram_bot_client = clients[0], clients[1], clients[2]
                 if (
                     telegram_client
                     and not telegram_client.is_connected()
+                    and not telegram_bot_client.is_bot()
                     and not discord_client.is_ready()
                 ):
                     clients = ()
@@ -395,12 +398,15 @@ class Forwarder(metaclass=SingletonMeta):
             # The PID file does not exist, so the process is considered stopped.
             return ProcessStateEnum.STOPPED, 0
 
-    async def init_clients(self) -> Tuple[TelegramClient, discord.Client]:
+    async def init_clients(self) -> Tuple[TelegramClient, discord.Client, TelegramClient]:
         """Handle the initialization of the bridge's clients."""
 
         event_loop = asyncio.get_event_loop()
 
         self.telegram_client = await TelegramHandler(self.dispatcher).init_client(
+            event_loop
+        )
+        self.telegram_bot_client = await TelegramBotHandler(self.dispatcher).init_client(
             event_loop
         )
         self.discord_client = await DiscordHandler().init_client()
@@ -427,7 +433,7 @@ class Forwarder(metaclass=SingletonMeta):
         try:
             lock = asyncio.Lock()
             await lock.acquire()
-            bridge = Bridge(self.telegram_client, self.discord_client)
+            bridge = Bridge(self.telegram_client, self.discord_client, self.telegram_bot_client)
             # Create tasks for starting the main logic and waiting for clients to disconnect
             start_task = event_loop.create_task(
                 bridge.start(), name="bridge_start_task"
@@ -435,12 +441,15 @@ class Forwarder(metaclass=SingletonMeta):
             telegram_wait_task = event_loop.create_task(
                 self.telegram_client.run_until_disconnected(), name="telegram_wait_task"  # type: ignore
             )
+            telegram_bot_wait_task = event_loop.create_task(
+                self.telegram_bot_client.run_until_disconnected(), name="telegram_bot_wait_task"  # type: ignore
+            )
             discord_wait_task = event_loop.create_task(
                 self.discord_client.wait_until_ready(), name="discord_wait_task"
             )
             api_healthcheck_task = event_loop.create_task(
                 HealthHandler(
-                    self.dispatcher, self.telegram_client, self.discord_client
+                    self.dispatcher, self.telegram_client, self.discord_client, self.telegram_bot_client
                 ).check(config.application.healthcheck_interval),
                 name="api_healthcheck_task",
             )
@@ -453,6 +462,7 @@ class Forwarder(metaclass=SingletonMeta):
                 start_task,
                 telegram_wait_task,
                 discord_wait_task,
+                telegram_bot_wait_task,
                 api_healthcheck_task,
                 on_restored_connectivity_task,
                 return_exceptions=config.application.debug,
@@ -467,7 +477,7 @@ class Forwarder(metaclass=SingletonMeta):
                 exc_info=config.application.debug,
             )
 
-        return self.telegram_client, self.discord_client
+        return self.telegram_client, self.discord_client, self.telegram_bot_client
 
     async def api_shutdown(self):
         """Shutdown the bridge."""
