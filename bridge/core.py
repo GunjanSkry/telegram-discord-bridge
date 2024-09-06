@@ -171,7 +171,7 @@ class Bridge:
             should_forward_message = forwarder.forward_everything
             mention_everyone = forwarder.mention_everyone
             message_forward_hashtags: List[str] = []
-            tg_group_ig = forwarder.tg_group_id
+            tg_group_id = forwarder.tg_group_id
 
             if not should_forward_message or forwarder.mention_override:
                 message_forward_hashtags = self.get_message_forward_hashtags(message)
@@ -236,11 +236,12 @@ class Bridge:
 
             if message.reply_to and message.reply_to.reply_to_msg_id:
 
-                await self.telegram_bot_client.send_message(
-                    entity=tg_group_ig,
-                    message=message_text,
-                    reply_to=message.reply_to.reply_to_msg_id
-                )
+                if tg_group_id:
+                    await self.telegram_bot_client.send_message(
+                        entity=tg_group_id,
+                        message=message_text,
+                        reply_to=message.reply_to.reply_to_msg_id
+                    )
 
                 discord_reference = (
                     await self.discord_handler.fetch_reference(
@@ -257,7 +258,8 @@ class Bridge:
                     message, discord_channel, message_text, discord_reference
                 )
             else:
-                await self.telegram_bot_client.send_message(entity=tg_group_ig, message=message_text)
+                if tg_group_id:
+                    await self.telegram_bot_client.send_message(entity=tg_group_id, message=message_text)
 
                 sent_discord_messages = await self.discord_handler.forward_message(
                     discord_channel,  # type: ignore

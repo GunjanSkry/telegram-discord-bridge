@@ -27,7 +27,7 @@ class ForwarderConfig(BaseModel):
     forward_hashtags: Optional[List[dict]] = None
     excluded_hashtags: Optional[List[dict]] = None
     mention_override: Optional[List[dict]] = None
-    tg_group_id: StrictInt
+    tg_group_id: StrictInt | None
 
     def __getitem__(self, item):
         return getattr(self, item)
