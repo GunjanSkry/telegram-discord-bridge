@@ -27,6 +27,7 @@ class ForwarderConfig(BaseModel):
     forward_hashtags: Optional[List[dict]] = None
     excluded_hashtags: Optional[List[dict]] = None
     mention_override: Optional[List[dict]] = None
+    tg_group_id: StrictInt
 
     def __getitem__(self, item):
         return getattr(self, item)
@@ -223,6 +224,7 @@ class TelegramConfig(BaseModel):  # pylint: disable=too-few-public-methods
     password: str
     api_id: StrictInt
     api_hash: str
+    bot_token: str
     log_unhandled_dialogs: bool = False
     subscribe_to_edit_events: bool = False
     subscribe_to_delete_events: bool = False

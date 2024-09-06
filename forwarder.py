@@ -406,9 +406,7 @@ class Forwarder(metaclass=SingletonMeta):
         self.telegram_client = await TelegramHandler(self.dispatcher).init_client(
             event_loop
         )
-        self.telegram_bot_client = await TelegramBotHandler(self.dispatcher).init_client(
-            event_loop
-        )
+        self.telegram_bot_client = await TelegramBotHandler(self.dispatcher).init_client()
         self.discord_client = await DiscordHandler().init_client()
 
         # Set signal handlers for graceful shutdown on received signal (except on Windows)
@@ -441,15 +439,12 @@ class Forwarder(metaclass=SingletonMeta):
             telegram_wait_task = event_loop.create_task(
                 self.telegram_client.run_until_disconnected(), name="telegram_wait_task"  # type: ignore
             )
-            telegram_bot_wait_task = event_loop.create_task(
-                self.telegram_bot_client.run_until_disconnected(), name="telegram_bot_wait_task"  # type: ignore
-            )
             discord_wait_task = event_loop.create_task(
                 self.discord_client.wait_until_ready(), name="discord_wait_task"
             )
             api_healthcheck_task = event_loop.create_task(
                 HealthHandler(
-                    self.dispatcher, self.telegram_client, self.discord_client, self.telegram_bot_client
+                    self.dispatcher, self.telegram_client, self.discord_client
                 ).check(config.application.healthcheck_interval),
                 name="api_healthcheck_task",
             )
@@ -462,7 +457,6 @@ class Forwarder(metaclass=SingletonMeta):
                 start_task,
                 telegram_wait_task,
                 discord_wait_task,
-                telegram_bot_wait_task,
                 api_healthcheck_task,
                 on_restored_connectivity_task,
                 return_exceptions=config.application.debug,

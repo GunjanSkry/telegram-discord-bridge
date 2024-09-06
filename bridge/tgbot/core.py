@@ -84,12 +84,12 @@ class TelegramBotHandler(metaclass=SingletonMeta):
     async def init_client(  # pylint: disable=too-many-statements
         self, event_loop: AbstractEventLoop | None = None
     ) -> TelegramClient:  # pylint: disable=too-many-statements
-        """Init the Telegram client."""
-        logger.info("Initializing Telegram client...")
+        """Init the Telegram Bot client."""
+        logger.info("Initializing Telegram Bot client...")
 
-        if event_loop is None:
-            logger.warning("Inferring the current event loop into the Telegram client")
-            event_loop = asyncio.get_event_loop()
+        # if event_loop is None:
+        #     logger.warning("Inferring the current event loop into the Telegram client")
+        #     event_loop = asyncio.get_event_loop()
 
         telethon_logger = Logger.get_telethon_logger()
         telethon_logger_handler = Logger.generate_handler(
@@ -98,26 +98,30 @@ class TelegramBotHandler(metaclass=SingletonMeta):
         telethon_logger.addHandler(telethon_logger_handler)
 
         telegram_bot_client = TelegramClient(
-            session=config.application.name,
+            session=f"{config.application.name}-bot",
             api_id=config.telegram.api_id,
             api_hash=config.telegram.api_hash,
             connection_retries=15,
             retry_delay=4,
             base_logger=telethon_logger,
             lang_code="en",
-            system_lang_code="en",
-            loop=event_loop,
+            system_lang_code="en"
         )
 
         telegram_bot_client.parse_mode = "markdown"
         await telegram_bot_client.connect()
 
-        logger.info("Signing in to Telegram...")
+        logger.info("Signing in to Telegram Bot...")
 
         try:
+            logger.info(
+                "Telegram bot token: %s",
+                config.telegram.bot_token
+            )
             await telegram_bot_client.start(
                 bot_token=config.telegram.bot_token
             )  # type: ignore
+            logger.info("Signing in to Telegram Bot success...")
         except FloodWaitError as ex:
             logger.error(
                 "Telegram client failed to start: %s",
@@ -198,10 +202,12 @@ class TelegramBotHandler(metaclass=SingletonMeta):
                 ) as auth_file:
                     json.dump(auth_data, auth_file)
             raise
+        except ex:
+            logger.error(ex)
 
-        if os.path.isfile(config.api.telegram_auth_file):
-            os.remove(config.api.telegram_auth_file)
-
+        logger.info(
+            "bot start succesfull"
+        ) 
         bot_identity = await telegram_bot_client.get_me(input_peer=False)
         logger.info(
             "Telegram client started the session: %s, with identity: %s",

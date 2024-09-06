@@ -233,12 +233,15 @@ class Bridge:
                 config.openai.enabled,
             )
 
-            if message.reply_to and message.reply_to.reply_to_msg_id:
-                self.telegram_bot_client.send_message(entity=tg_group_ig, message=message, reply_to=message.reply_to.reply_to_msg_id)
-            else:
-                self.telegram_bot_client.send_message(entity=tg_group_ig, message=message)
 
             if message.reply_to and message.reply_to.reply_to_msg_id:
+
+                await self.telegram_bot_client.send_message(
+                    entity=tg_group_ig,
+                    message=message_text,
+                    reply_to=message.reply_to.reply_to_msg_id
+                )
+
                 discord_reference = (
                     await self.discord_handler.fetch_reference(
                         message, forwarder.forwarder_name, discord_channel
@@ -254,6 +257,8 @@ class Bridge:
                     message, discord_channel, message_text, discord_reference
                 )
             else:
+                await self.telegram_bot_client.send_message(entity=tg_group_ig, message=message_text)
+
                 sent_discord_messages = await self.discord_handler.forward_message(
                     discord_channel,  # type: ignore
                     message_text,
@@ -325,7 +330,7 @@ class Bridge:
 
             tg_group_id = forwarder.tg_group_id
 
-            self.telegram_bot_client.edit_message(entity=tg_group_id,message=message)
+            await self.telegram_bot_client.edit_message(entity=tg_group_id,message=message)
 
             discord_message_id = await self.history_manager.get_discord_message_id(
                 forwarder.forwarder_name, tg_message_id
@@ -482,9 +487,9 @@ class Bridge:
     async def process_message_text(
         message: Message,
         strip_off_links: bool,
-        mention_everyone: bool,
-        mention_roles: List[str],
-        openai_enabled: bool,
+        mention_everyone: bool = False,
+        mention_roles: List[str] = [],
+        openai_enabled: bool = False,
     ) -> str:  # pylint: disable=too-many-arguments
         """Process the message text and return the processed text."""
 
