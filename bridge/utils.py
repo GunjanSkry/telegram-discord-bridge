@@ -1,5 +1,7 @@
 """Utility functions."""
 from typing import List, Tuple
+from bridge.logger import Logger
+from bridge.config import Config
 
 from telethon.tl.types import (
     Message,
@@ -11,6 +13,8 @@ from telethon.tl.types import (
     MessageEntityTextUrl,
 )
 
+config = Config.get_instance()
+logger = Logger.get_logger(config.application.name)
 
 def split_message(message: str, max_length: int = 2000) -> List[str]:
     """Split a message into multiple messages if it exceeds the max length."""
@@ -124,3 +128,8 @@ def apply_markdown(
         + text[end:],
         len(opening_delimiter) + len(closing_delimiter),
     )
+
+def printObj(
+    obj
+):
+    logger.info("%s ->",obj)

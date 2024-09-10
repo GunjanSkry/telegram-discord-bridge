@@ -51,7 +51,7 @@ class MessageHistoryHandler:
             return self._mapping_data_cache
 
     async def save_mapping_data(
-        self, forwarder_name: str, tg_message_id: int, discord_message_id: int
+        self, forwarder_name: str, tg_message_id: int, discord_or_tele_message_id: int
     ) -> None:
         """Save the mapping data to the mapping file."""
         # async with self._lock:
@@ -61,13 +61,13 @@ class MessageHistoryHandler:
             "Saving mapping data: %s, %s, %s",
             forwarder_name,
             tg_message_id,
-            discord_message_id,
+            discord_or_tele_message_id,
         )
 
         if forwarder_name not in mapping_data:
             mapping_data[forwarder_name] = {}
 
-        mapping_data[forwarder_name][tg_message_id] = discord_message_id
+        mapping_data[forwarder_name][tg_message_id] = discord_or_tele_message_id
         try:
             async with aiofiles.open(
                 MESSAGES_HISTORY_FILE, "w", encoding="utf-8"
@@ -129,6 +129,18 @@ class MessageHistoryHandler:
             )
 
     async def get_discord_message_id(
+        self, forwarder_name: str, tg_message_id: int
+    ) -> Optional[int]:
+        """Get the Discord message ID associated with the given TG message ID for the specified forwarder."""
+        mapping_data = await self.load_mapping_data()
+        forwarder_data = mapping_data.get(forwarder_name, None)
+
+        if forwarder_data is not None:
+            return forwarder_data.get(tg_message_id, None)
+
+        return None
+    
+    async def get_telegram_message_id(
         self, forwarder_name: str, tg_message_id: int
     ) -> Optional[int]:
         """Get the Discord message ID associated with the given TG message ID for the specified forwarder."""

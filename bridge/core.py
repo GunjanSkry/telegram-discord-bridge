@@ -22,7 +22,7 @@ from bridge.discord import DiscordHandler
 from bridge.history import MessageHistoryHandler
 from bridge.logger import Logger
 from bridge.openai.handler import OpenAIHandler
-from bridge.utils import telegram_entities_to_markdown
+from bridge.utils import telegram_entities_to_markdown, printObj
 
 config = Config.get_instance()
 logger = Logger.get_logger(config.application.name)
@@ -39,6 +39,7 @@ class Bridge:
         self.discord_handler = DiscordHandler()
         self.history_manager = MessageHistoryHandler()
         self.input_channels_entities = []
+        self.peer_to_channel_mapping = {}
 
         logger.debug("Forwarders: %s", config.telegram_forwarders)
 
@@ -168,6 +169,9 @@ class Bridge:
         for forwarder in matching_forwarders:
             logger.debug("Forwarder config: %s", forwarder)
 
+            telegram_history_forwarder_name = forwarder.forwarder_name + '_tele'
+            mapped_tele_message_id = None
+
             should_forward_message = forwarder.forward_everything
             mention_everyone = forwarder.mention_everyone
             message_forward_hashtags: List[str] = []
@@ -233,15 +237,20 @@ class Bridge:
                 config.openai.enabled,
             )
 
+            tele_message_text = await self.process_message_text(
+                message,
+                forwarder.strip_off_links,
+                False,
+                mention_roles,
+                config.openai.enabled,
+            )
+
+            printObj(message)
 
             if message.reply_to and message.reply_to.reply_to_msg_id:
 
                 if tg_group_id:
-                    await self.telegram_bot_client.send_message(
-                        entity=tg_group_id,
-                        message=message_text,
-                        reply_to=message.reply_to.reply_to_msg_id
-                    )
+                    mapped_tele_message_id = await self.history_manager.get_telegram_message_id(telegram_history_forwarder_name, message.reply_to.reply_to_msg_id)
 
                 discord_reference = (
                     await self.discord_handler.fetch_reference(
@@ -259,8 +268,22 @@ class Bridge:
                 )
             else:
                 if tg_group_id:
-                    await self.telegram_bot_client.send_message(entity=tg_group_id, message=message_text)
 
+                    if mapped_tele_message_id :
+                        sent_tele_message = await self.telegram_bot_client.send_message(
+                            entity=tg_group_id,
+                            message=tele_message_text,
+                            reply_to=mapped_tele_message_id
+                        )
+                    else :
+                        sent_tele_message = await self.telegram_bot_client.send_message(
+                            entity=tg_group_id,
+                            message=tele_message_text
+                        )
+                    await self.history_manager.save_mapping_data(
+                        telegram_history_forwarder_name, message.id, sent_tele_message.id
+                    )
+                    
                 sent_discord_messages = await self.discord_handler.forward_message(
                     discord_channel,  # type: ignore
                     message_text,
